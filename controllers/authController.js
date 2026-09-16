@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import cloudinary from '../config/cloudinary.js';
 import getDataUri from '../utils/dataUri.js';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken, PASSWORD_RESET_SECRET } from '../utils/Token.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken, PASSWORD_RESET_SECRET } from '../utils/token.js';
 import Wishlist from '../models/Wishlist.js';
 import PasswordReset from '../models/PasswordReset.js';
 import { sendPasswordResetOTPEmail } from '../utils/emailTemplates.js';
