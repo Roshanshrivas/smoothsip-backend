@@ -52,9 +52,18 @@ import userRoutes from './routes/public/userRoutes.js';
 
 
 dotenv.config();
+
+console.log('═══════════════════════════════════');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('isProd:', process.env.NODE_ENV === 'production');
+console.log('CLIENT_URL:', process.env.CLIENT_URL);
+console.log('═══════════════════════════════════');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// ─── Trust Hostinger's reverse proxy for HTTPS detection ───
+app.set('trust proxy', 1);   // ← ADD THIS LINE
 
 // app.use(helmet());
 app.use(compression());

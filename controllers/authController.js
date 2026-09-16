@@ -11,6 +11,17 @@ import PasswordReset from '../models/PasswordReset.js';
 import { sendPasswordResetOTPEmail } from '../utils/emailTemplates.js';
 
 
+const isProd = process.env.NODE_ENV === 'production';
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'lax',   // 'none' allows cross-origin cookies
+  domain: isProd ? '.smoothsip.in' : undefined,
+  path: '/',
+};
+
+
 // Helper: Set HTTP-Only JWT Cookies and Send Standard User Response
 const sendTokenResponse = async (user, statusCode, res, message) => {
   const accessToken = generateAccessToken(user._id, user.role);
@@ -20,19 +31,13 @@ const sendTokenResponse = async (user, statusCode, res, message) => {
   user.lastLogin = new Date();
   await user.save({ validateBeforeSave: false });
 
-  const isProduction = process.env.NODE_ENV === 'production';
-
   res.cookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'lax',
+    ...COOKIE_OPTIONS,
     maxAge: 15 * 60 * 1000, // 15 minutes
   });
 
   res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'lax',
+    ...COOKIE_OPTIONS,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -203,15 +208,11 @@ export const login = async (req, res) => {
 
     // ─── Fix: sameSite: 'lax' ───
     res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // ✅ changed from 'strict'
+      ...COOKIE_OPTIONS,
       maxAge: 15 * 60 * 1000,
     });
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      ...COOKIE_OPTIONS,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -249,9 +250,9 @@ export const logout = async (req, res) => {
       }
     }
 
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
-    res.clearCookie('guestId');
+    res.clearCookie('accessToken', COOKIE_OPTIONS);
+    res.clearCookie('refreshToken', COOKIE_OPTIONS);
+    res.clearCookie('guestId', COOKIE_OPTIONS);
 
     return res.json({
       success: true,
@@ -283,7 +284,7 @@ export const refreshAccessToken = async (req, res) => {
     
 
     if (!user || user.refreshToken !== refreshToken) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
         message: 'Invalid Refresh token',
       });
@@ -294,9 +295,7 @@ export const refreshAccessToken = async (req, res) => {
 
     // ── Set new access token cookie ──
     res.cookie('accessToken', newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      ...COOKIE_OPTIONS,
       maxAge: 15 * 60 * 1000,
     });
 
@@ -460,9 +459,9 @@ export const deleteAccount = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     // Optionally clear cookies
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
-    res.clearCookie('guestId');
+    res.clearCookie('accessToken', COOKIE_OPTIONS);
+    res.clearCookie('refreshToken', COOKIE_OPTIONS);
+    res.clearCookie('guestId', COOKIE_OPTIONS);
     return res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
@@ -710,8 +709,8 @@ export const resetPassword = async (req, res) => {
     await PasswordReset.deleteMany({ email: cleanEmail });
 
     // Clear any existing auth cookies on this browser
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    res.clearCookie('accessToken', COOKIE_OPTIONS);
+    res.clearCookie('refreshToken', COOKIE_OPTIONS);
 
     return res.json({
       success: true,
