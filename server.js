@@ -58,8 +58,14 @@ const PORT = process.env.PORT || 4000;
 
 // app.use(helmet());
 app.use(compression());
+
+const allowedOrigins = [
+  'https://smoothsip.in',
+  'https://www.smoothsip.in',
+];
+
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
