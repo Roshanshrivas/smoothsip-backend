@@ -28,6 +28,7 @@ import adminSettingsRoutes from './routes/admin/settingsRoutes.js';
 import adminNotificationRoutes from './routes/admin/notificationRoutes.js';
 import { maintenanceMode } from './middleware/maintenance.js';
 import adminContactRoutes from './routes/admin/contactRoutes.js';
+import adminBulkInquiryRoutes from './routes/admin/bulkInquiryRoutes.js';
 
 // Public
 import publicProductRoutes from './routes/public/productRoutes.js';
@@ -43,6 +44,7 @@ import addressRoutes from './routes/public/addressRoutes.js';
 import publicNotificationRoutes from './routes/public/notificationRoutes.js';
 import publicCategoryRoutes from './routes/public/categoryRoutes.js';
 import publicContactRoutes from './routes/public/contactRoutes.js';
+import publicBulkInquiryRoutes from './routes/public/bulkInquiryRoutes.js';
 
 import cloudinaryRoutes from './config/cloudinary.js';
 import publicCustomProductRoutes from './routes/public/customProductRoutes.js';
@@ -113,6 +115,7 @@ app.use('/api/categories', publicCategoryRoutes);
 app.use('/api/custom-products', publicCustomProductRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/contact', publicContactRoutes);
+app.use('/api/bulk-inquiry', publicBulkInquiryRoutes);
 
 // Admin Routes
 app.use('/api/admin/products', adminProductRoutes);
@@ -129,6 +132,7 @@ app.use('/api/admin/cloudinary', cloudinaryRoutes);
 app.use('/api/admin/settings', adminSettingsRoutes);
 app.use('/api/admin/notifications', adminNotificationRoutes);
 app.use('/api/admin/contacts', adminContactRoutes);
+app.use('/api/admin/bulk-inquiries', adminBulkInquiryRoutes);
 
 app.use((err, req, res, next) => {
   console.error('🔥', err.stack);
