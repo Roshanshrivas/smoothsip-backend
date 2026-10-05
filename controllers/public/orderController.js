@@ -173,21 +173,99 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// Track order (public – no auth)
+// Track order (PUBLIC — requires order number + email/phone verification)
 export const trackOrder = async (req, res) => {
   try {
     const { orderNumber } = req.params;
-    const order = await Order.findOne({ orderNumber });
-    if (!order) throw new ApiError(404, 'Order not found');
-    res.json({ success: true, order: {
-      orderNumber: order.orderNumber,
-      status: order.status,
-      trackingNumber: order.trackingNumber,
-      shippedDate: order.shippedDate,
-      deliveredDate: order.deliveredDate
-    }});
+    const { email, phone } = req.query;
+
+    // Require at least one verification method
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email or phone to verify',
+      });
+    }
+
+    // Build query — must match order number AND email/phone
+    const query = { orderNumber };
+    if (email) {
+      query.email = email.toLowerCase().trim();
+    } else if (phone) {
+      // Strip spaces/dashes for comparison
+      const cleanPhone = phone.replace(/[\s\-()]/g, '');
+      query.phone = { $regex: cleanPhone.replace(/^\+91/, ''), $options: 'i' };
+    }
+
+    const order = await Order.findOne(query);
+
+    // Always use the same generic error (prevents order-number enumeration)
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found. Please check your details.',
+      });
+    }
+
+    // Return ONLY safe fields — no address, no payment, no items
+    return res.json({
+      success: true,
+      order: {
+        orderNumber: order.orderNumber,
+        status: order.status,
+        trackingNumber: order.trackingNumber || null,
+        shippedDate: order.shippedDate || null,
+        deliveredDate: order.deliveredDate || null,
+      },
+    });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    console.error('Track order error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Something went wrong. Please try again.',
+    });
+  }
+};
+
+// Track by tracking/AWB number (PUBLIC)
+export const trackByAwb = async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+
+    if (!trackingNumber || !trackingNumber.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tracking number is required',
+      });
+    }
+
+    const order = await Order.findOne({
+      trackingNumber: trackingNumber.trim(),
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tracking number not found.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      order: {
+        orderNumber: order.orderNumber,
+        status: order.status,
+        trackingNumber: order.trackingNumber,
+        shippedDate: order.shippedDate || null,
+        deliveredDate: order.deliveredDate || null,
+      },
+    });
+  } catch (error) {
+    console.error('Track by AWB error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Something went wrong. Please try again.',
+    });
   }
 };
 

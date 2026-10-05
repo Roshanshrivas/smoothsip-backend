@@ -71,6 +71,7 @@ app.set('trust proxy', 1);   // ← ADD THIS LINE
 app.use(compression());
 
 const allowedOrigins = [
+  'http://localhost:5173',
   'https://smoothsip.in',
   'https://www.smoothsip.in',
 ];

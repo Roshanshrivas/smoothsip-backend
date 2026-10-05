@@ -29,6 +29,7 @@ const productSchema = new mongoose.Schema({
   salesCount: { type: Number, default: 0 },
   totalRevenue: { type: Number, default: 0 },
   color: { type: String, default: '' },
+  sizes: { type: [String], default: [] }, 
   material: { type: String, default: 'Stainless Steel' },
   features: { type: [String], default: [] },
   specifications: { type: [{ label: String, value: String }], default: [] },
