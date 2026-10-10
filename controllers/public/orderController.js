@@ -47,23 +47,41 @@ export const createOrder = async (req, res) => {
     let subtotal = 0;
     const orderItems = validItems.map((item) => {
       const isCustom = item.customization?.isCustom;
+      // ── Resolve price ──
       const price = isCustom
-      ? (item.customization?.price || 0)
-      : (item.product?.price || 0);
+        ? item.customization?.price || 0
+        : item.product?.price || 0;
       subtotal += price * item.quantity;
+
+      // ── Resolve productId safely (null-safe) ──
+      let productId = null;
+      if (isCustom) {
+        // productId stored inside customization by addToCart
+        productId = item.customization?.productId || null;
+      } else if (item.product && (item.product._id || item.product.id)) {
+        productId = item.product._id || item.product.id;
+      }
+
+      // ── Resolve name ──
+      const name = isCustom
+        ? item.customization?.name || "Custom Tumbler"
+        : item.product?.name || item.product?.title || "Product";
+
+      // ── Resolve SKU ──
+      const sku = isCustom ? "CUSTOM" : item.product?.sku || "N/A";
+
+      // ── Resolve image ──
+      const image = isCustom
+        ? item.customization?.designImage || item.customization?.image || null
+        : item.product?.mainImage || item.product?.image || null;
+
       return {
-        product: isCustom
-        ? item.product._id || item.product
-        : item.product._id || item.product.id,
-        name: isCustom
-        ? item.customization.name
-        : (item.product.name || item.product.title),
-        sku: isCustom ? 'CUSTOM' : (item.product.sku || 'N/A'),
+        product: productId,
+        name,
+        sku,
         quantity: item.quantity,
-        price: price,
-        image: isCustom
-        ? item.customization.designImage
-        : (item.product.mainImage || item.product.image),
+        price,
+        image,
         customization: item.customization || {}
       };
     });
