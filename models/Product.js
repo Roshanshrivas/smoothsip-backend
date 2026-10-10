@@ -17,6 +17,12 @@ const productSchema = new mongoose.Schema({
   weight: { type: Number, default: 0 },
   dimensions: { length: Number, width: Number, height: Number },
   isCustomizable: { type: Boolean, default: false },
+  customizeProductId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CustomProduct',
+    default: null,
+    index: true,
+  },
   customizationOptions: {
     text: { enabled: Boolean, maxLength: Number, defaultText: String },
     logo: { enabled: Boolean, maxFileSize: Number, allowedFormats: [String] },

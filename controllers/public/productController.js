@@ -36,6 +36,7 @@ const transformProduct = (p) => ({
   isCustomizable: p.isCustomizable || false,
   metaTitle: p.metaTitle || '',
   metaDescription: p.metaDescription || '',
+  customizeProductId: p.customizeProductId ? String(p.customizeProductId) : null,
 });
 
 // ─── GET PUBLIC PRODUCTS (with full filter support) ───
