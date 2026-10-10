@@ -177,4 +177,34 @@ router.post('/delete-video', protect, admin, async (req, res) => {
   }
 });
 
+// ─── Upload customer design (any logged-in user — no admin needed) ───
+router.post('/upload-design', protect, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const fileStr = req.file.buffer.toString('base64');
+    const dataUri = `data:${req.file.mimetype};base64,${fileStr}`;
+
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder: 'tumbler/designs',           // separate folder from products
+      resource_type: 'image',
+      transformation: [
+        { quality: 'auto:good' },
+        { fetch_format: 'auto' },
+      ],
+    });
+
+    res.json({
+      success: true,
+      url: result.secure_url,
+      publicId: result.public_id,
+    });
+  } catch (error) {
+    console.error('Design upload error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

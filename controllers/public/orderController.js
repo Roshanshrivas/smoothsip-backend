@@ -34,7 +34,11 @@ export const createOrder = async (req, res) => {
     }
 
     // Filter valid items (product must exist)
-    const validItems = cart.items.filter((item) => item.product && (item.product._id || item.product.id));
+    const validItems = cart.items.filter((item) => {
+      // Custom items have product as raw ObjectId (populate fails silently)
+      if (item.customization?.isCustom) return true;
+      return item.product && (item.product._id || item.product.id);
+    }); 
     if (validItems.length === 0) {
       throw new ApiError(400, 'Your cart contains only unavailable products. Please remove them and try again.');
     }
@@ -42,15 +46,24 @@ export const createOrder = async (req, res) => {
      // ─── Step 1: Calculate raw subtotal ─────────────
     let subtotal = 0;
     const orderItems = validItems.map((item) => {
-      const price = item.product.price || 0;
+      const isCustom = item.customization?.isCustom;
+      const price = isCustom
+      ? (item.customization?.price || 0)
+      : (item.product?.price || 0);
       subtotal += price * item.quantity;
       return {
-        product: item.product._id || item.product.id,
-        name: item.product.name || item.product.title,
-        sku: item.product.sku || 'N/A',
+        product: isCustom
+        ? item.product._id || item.product
+        : item.product._id || item.product.id,
+        name: isCustom
+        ? item.customization.name
+        : (item.product.name || item.product.title),
+        sku: isCustom ? 'CUSTOM' : (item.product.sku || 'N/A'),
         quantity: item.quantity,
         price: price,
-        image: item.product.mainImage || item.product.image,
+        image: isCustom
+        ? item.customization.designImage
+        : (item.product.mainImage || item.product.image),
         customization: item.customization || {}
       };
     });

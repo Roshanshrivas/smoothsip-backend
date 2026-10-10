@@ -1,22 +1,19 @@
+// controllers/cartController.js
 import Cart from '../../models/Cart.js';
 import Product from '../../models/Product.js';
+import CustomProduct from '../../models/CustomProduct.js';   // 👈 NEW IMPORT
 import { v4 as uuidv4 } from 'uuid';
 import { ApiError } from '../../utils/ApiError.js';
 
-
 // ─── Helper: get user or guest identifier ──────────
 const getCartOwner = (req, res) => {
-  // If authenticated, use userId
-  if (req.userId) {
-    return { type: 'user', id: req.userId };
-  }
-  // Else get or create guestId from cookie
+  if (req.userId) return { type: 'user', id: req.userId };
   let guestId = req.cookies.guestId;
   if (!guestId) {
     guestId = uuidv4();
     res.cookie('guestId', guestId, {
       httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: 30 * 24 * 60 * 60 * 1000,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
     });
@@ -24,19 +21,31 @@ const getCartOwner = (req, res) => {
   return { type: 'guest', id: guestId };
 };
 
-// Helper: Calculate exact subtotal & total item counts
+// ─── Helper: get price from either product type ────
+// Regular products: product.price
+// Custom products: product.basePrice
+const getItemPrice = (item) => {
+  // 1. Prefer snapshot inside customization (custom items)
+  if (item.customization?.isCustom && item.customization?.price != null) {
+    return Number(item.customization.price) || 0;
+  }
+  // 2. Regular product price
+  if (item.product?.price != null) return Number(item.product.price) || 0;
+  // 3. Custom product basePrice
+  if (item.product?.basePrice != null) return Number(item.product.basePrice) || 0;
+  return 0;
+};
+
+// ─── Helper: Calculate subtotal & item count ───────
 const calculateCartTotals = (cart) => {
   let subtotal = 0;
   let totalItems = 0;
-
   if (cart && cart.items) {
     cart.items.forEach((item) => {
-      const price = item.product?.price || 0;
-      subtotal += price * item.quantity;
-      totalItems += item.quantity;
+      subtotal += getItemPrice(item) * (item.quantity || 1);
+      totalItems += item.quantity || 1;
     });
   }
-
   return { subtotal, totalItems };
 };
 
@@ -46,9 +55,7 @@ export const getCart = async (req, res) => {
     const owner = getCartOwner(req, res);
     const query = owner.type === 'user' ? { user: owner.id } : { guestId: owner.id };
     let cart = await Cart.findOne(query).populate('items.product');
-    if (!cart) {
-      cart = await Cart.create({ ...query, items: [] });
-    }
+    if (!cart) cart = await Cart.create({ ...query, items: [] });
     const { subtotal, totalItems } = calculateCartTotals(cart);
     res.json({ success: true, cart, subtotal, totalItems });
   } catch (error) {
@@ -57,31 +64,59 @@ export const getCart = async (req, res) => {
   }
 };
 
-// Add to cart
+// ─── Add to cart ───────────────────────────────────
 export const addToCart = async (req, res) => {
   try {
     const { productId, quantity = 1, customization = {} } = req.body;
-    const product = await Product.findById(productId);
+
+    // ── Look in Product first ──
+    let product = await Product.findById(productId);
+    let isCustom = false;
+
+    // ── If not found, look in CustomProduct ──
+    if (!product) {
+      product = await CustomProduct.findById(productId);
+      if (product) isCustom = true;
+    }
+
     if (!product) throw new ApiError(404, 'Product not found');
-    if (product.stock < quantity) throw new ApiError(400, 'Not enough stock');
+
+    // Stock check only for regular products (custom are made-to-order)
+    if (!isCustom && product.stock < quantity) {
+      throw new ApiError(400, 'Not enough stock');
+    }
 
     const owner = getCartOwner(req, res);
     const query = owner.type === 'user' ? { user: owner.id } : { guestId: owner.id };
     let cart = await Cart.findOne(query);
-    if (!cart) {
-      cart = await Cart.create({ ...query, items: [] });
-    }
+    if (!cart) cart = await Cart.create({ ...query, items: [] });
 
-    // Check if item already exists with same customization
-    const existingItem = cart.items.find((item) => 
-      item.product.toString() === productId && 
-      JSON.stringify(item.customization) === JSON.stringify(customization)
+    // ── Attach snapshot data for custom items so price/name/image survive populate() ──
+    const enrichedCustomization = isCustom
+      ? {
+          ...customization,
+          isCustom: true,
+          name: product.name,
+          price: product.basePrice,
+          image: product.mainImage,
+        }
+      : customization;
+
+    // Check for duplicate (same product + same customization)
+    const existingItem = cart.items.find(
+      (item) =>
+        item.product.toString() === productId &&
+        JSON.stringify(item.customization) === JSON.stringify(enrichedCustomization)
     );
 
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
-      cart.items.push({ product: productId, quantity, customization });
+      cart.items.push({
+        product: productId,
+        quantity,
+        customization: enrichedCustomization,
+      });
     }
 
     await cart.save();
@@ -89,11 +124,14 @@ export const addToCart = async (req, res) => {
     const { subtotal, totalItems } = calculateCartTotals(cart);
     res.json({ success: true, cart, subtotal, totalItems });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message || 'Failed to add to cart'});
+    console.error('Add to cart error:', error);
+    res
+      .status(error.statusCode || 500)
+      .json({ success: false, message: error.message || 'Failed to add to cart' });
   }
 };
 
-// Update cart item
+// ─── Update cart item ──────────────────────────────
 export const updateCartItem = async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -114,7 +152,7 @@ export const updateCartItem = async (req, res) => {
     await cart.save();
     await cart.populate('items.product');
     const { subtotal, totalItems } = calculateCartTotals(cart);
-    res.json({  success: true, cart, subtotal, totalItems  });
+    res.json({ success: true, cart, subtotal, totalItems });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to update item' });
   }
@@ -126,32 +164,26 @@ export const removeFromCart = async (req, res) => {
     const { itemId } = req.params;
     const owner = getCartOwner(req, res);
     const query = owner.type === 'user' ? { user: owner.id } : { guestId: owner.id };
-    
+
     const cart = await Cart.findOne(query);
-    if (!cart) {
-      return res.status(404).json({ success: false, message: 'Cart not found' });
-    }
+    if (!cart) return res.status(404).json({ success: false, message: 'Cart not found' });
 
     const item = cart.items.id(itemId);
-    if (!item) {
-      return res.status(404).json({ success: false, message: 'Item not found in cart' });
-    }
+    if (!item) return res.status(404).json({ success: false, message: 'Item not found in cart' });
 
     cart.items = cart.items.filter((i) => i._id.toString() !== itemId);
     await cart.save();
-
     await cart.populate('items.product');
 
     const { subtotal, totalItems } = calculateCartTotals(cart);
     res.json({ success: true, cart, subtotal, totalItems });
-
   } catch (error) {
     console.error('Remove cart error:', error);
     res.status(500).json({ success: false, message: 'Failed to remove item' });
   }
 };
 
-// Clear cart
+// ─── Clear cart ────────────────────────────────────
 export const clearCart = async (req, res) => {
   try {
     const owner = getCartOwner(req, res);
