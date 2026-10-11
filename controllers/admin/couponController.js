@@ -13,8 +13,26 @@ export const getCoupons = async (req, res) => {
         { description: { $regex: search, $options: 'i' } },
       ];
     }
-    if (status === 'active') query.active = true;
-    else if (status === 'inactive') query.active = false;
+    const now = new Date();
+
+    if (status === 'active') {
+      query.active = true;
+      query.startDate = { $lte: now };
+      query.$or = [
+        { endDate: null },
+        { endDate: { $gte: now } },
+      ];
+    } else if (status === 'scheduled') {
+      query.active = true;
+      query.startDate = { $gt: now };
+    } else if (status === 'expired') {
+      query.$or = [
+        { active: false },
+        { endDate: { $lt: now } },
+      ];
+    } else if (status === 'inactive') {
+      query.active = false;
+    }
 
     const total = await Coupon.countDocuments(query);
     const coupons = await Coupon.find(query)
@@ -27,6 +45,7 @@ export const getCoupons = async (req, res) => {
       coupons,
       total,
       page: Number(page),
+      totalPages: Math.ceil(total / limit),
       limit: Number(limit),
     });
   } catch (error) {
