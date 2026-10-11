@@ -2,10 +2,6 @@ import Coupon from '../../models/Coupon.js';
 import logger from '../../utils/logger.js';
 import { ApiError } from '../../utils/ApiError.js';
 
-// ─── Get available coupons for the user ────────────
-import Coupon from '../../models/Coupon.js';
-import logger from '../../utils/logger.js';
-
 // ─── Get available coupons for the current user ───
 export const getAvailableCoupons = async (req, res) => {
   try {
