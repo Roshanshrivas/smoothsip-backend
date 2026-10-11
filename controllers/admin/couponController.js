@@ -49,9 +49,12 @@ export const getCoupon = async (req, res) => {
 // ─── Create coupon ─────────────────────────────────
 export const createCoupon = async (req, res) => {
   try {
-    const { code, description, discountType, discountValue, minimumOrder, maxDiscount, startDate, endDate, usageLimit, active } = req.body;
+    const {
+      code, description, discountType, discountValue,
+      minimumOrder, maxDiscount, startDate, endDate,
+      usageLimit, perUserLimit, active,
+    } = req.body;
 
-    // Check duplicate code
     const existing = await Coupon.findOne({ code: code.toUpperCase() });
     if (existing) throw new ApiError(400, 'Coupon code already exists');
 
@@ -64,7 +67,8 @@ export const createCoupon = async (req, res) => {
       maxDiscount: maxDiscount || null,
       startDate: startDate || new Date(),
       endDate: endDate || null,
-      usageLimit: usageLimit || null,
+      usageLimit: usageLimit ?? null,
+      perUserLimit: perUserLimit ?? 1,   // ✅ default: one-time per user
       active: active !== undefined ? active : true,
     });
 

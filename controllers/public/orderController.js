@@ -92,30 +92,73 @@ export const createOrder = async (req, res) => {
 
     if (couponId) {
       const coupon = await Coupon.findById(couponId);
-      if (coupon && coupon.active) {
-        // Validate coupon
-        if (coupon.minimumOrder && subtotal < coupon.minimumOrder) {
-          throw new ApiError(400, `Minimum order amount ₹${coupon.minimumOrder} required`);
-        }
-
-        // Calculate discount based on subtotal
-        if (coupon.discountType === "percentage") {
-          couponDiscount = (subtotal * coupon.discountValue) / 100;
-          if (coupon.maxDiscount && couponDiscount > coupon.maxDiscount) {
-            couponDiscount = coupon.maxDiscount;
-          }
-        } else if (coupon.discountType === "fixed") {
-          couponDiscount = coupon.discountValue;
-        }
-        couponDiscount = Math.round(couponDiscount);
-
-        // Increment usage
-        coupon.usedCount += 1;
-        await coupon.save();
-        appliedCoupon = coupon;
-      } else {
-        throw new ApiError(400, "Invalid or inactive coupon");
+      if (!coupon || !coupon.active) {
+        throw new ApiError(400, 'Invalid or inactive coupon');
       }
+
+      // Re-validate all conditions
+      const now = new Date();
+      if (coupon.startDate && coupon.startDate > now) {
+        throw new ApiError(400, 'Coupon is not yet valid');
+      }
+      if (coupon.endDate && coupon.endDate < now) {
+        throw new ApiError(400, 'Coupon has expired');
+      }
+      if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        throw new ApiError(400, 'Coupon usage limit reached');
+      }
+      if (coupon.minimumOrder && subtotal < coupon.minimumOrder) {
+        throw new ApiError(400, `Minimum order ₹${coupon.minimumOrder} required`);
+      }
+
+      // Per-user limit check
+      if (req.userId) {
+        const entry = (coupon.usedBy || []).find(
+          (u) => String(u.user) === String(req.userId)
+        );
+        const userCount = entry?.count || 0;
+        const perUserLimit = coupon.perUserLimit ?? 1;
+        if (perUserLimit !== null && userCount >= perUserLimit) {
+          throw new ApiError(400, 'You have already used this coupon');
+        }
+      }
+
+      // Compute discount
+      if (coupon.discountType === 'percentage') {
+        couponDiscount = (subtotal * coupon.discountValue) / 100;
+        if (coupon.maxDiscount && couponDiscount > coupon.maxDiscount) {
+          couponDiscount = coupon.maxDiscount;
+        }
+      } else {
+        couponDiscount = coupon.discountValue;
+      }
+      couponDiscount = Math.round(couponDiscount);
+
+      // Atomic per-user usage record
+      if (req.userId) {
+        const result = await Coupon.updateOne(
+          { _id: coupon._id, 'usedBy.user': req.userId },
+          {
+            $inc: { usedCount: 1, 'usedBy.$.count': 1 },
+            $set: { 'usedBy.$.lastUsedAt': new Date() },
+          }
+        );
+        if (result.matchedCount === 0) {
+          await Coupon.updateOne(
+            { _id: coupon._id },
+            {
+              $inc: { usedCount: 1 },
+              $push: {
+                usedBy: { user: req.userId, count: 1, lastUsedAt: new Date() },
+              },
+            }
+          );
+        }
+      } else {
+        await Coupon.updateOne({ _id: coupon._id }, { $inc: { usedCount: 1 } });
+      }
+
+      appliedCoupon = coupon;
     }
 
     // ─── Step 3: Calculate discounted subtotal ──────
