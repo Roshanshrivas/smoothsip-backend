@@ -7,7 +7,6 @@ import compression from 'compression';
 import connectDB from './config/db.js';
 import cookieParser from 'cookie-parser';
 import healthRoutes from './routes/public/healthRoutes.js';
-import sitemapRoutes from './routes/sitemap.js';
 
 // ─── Routes ─────────────────────────────────────
 // Auth
@@ -93,8 +92,6 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'OK' }));
 
 
 // ─── API Routes ─────────────────────────────────
-
-app.use('/sitemap.xml', sitemapRoutes);
 
 // Auth
 app.use("/api/auth", authRoute);
